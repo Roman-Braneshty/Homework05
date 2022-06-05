@@ -2,8 +2,11 @@ from collections import UserDict
 
 
 class Field:
-    def __init__(self, value):
+    def __init__(self, value) -> None:
         self.value = value
+
+    def __str__(self) -> str:
+        return f'{self.value}'
 
 
 class Name(Field):
@@ -15,91 +18,112 @@ class Phone(Field):
 
 
 class Record:
-    def __init__(self, name: Name, phone: Phone) -> None:
+    def __init__(self, name: Name, phones=[]) -> None:
         self.name = name
-        self.phone = phone
+        self.phone_list = phones
+
+    def __str__(self) -> str:
+        return f'User {self.name} - Phones: {", ".join([phone.value for phone in self.phone_list])}'
+
+    def add_phone(self, phone: Phone) -> None:
+        self.phone_list.append(phone)
+
+    def del_phone(self, phone: Phone) -> None:
+        self.phone_list.remove(phone)
+
+    def edit_phone(self, phone: Phone, new_phone: Phone) -> None:
+        self.phone_list.remove(phone)
+        self.phone_list.append(new_phone)
 
 
 class AddressBook(UserDict):
-    def add_record(self, rec: Record):
-        self.data[rec.name.value] = rec
+    def add_record(self, record: Record) -> None:
+        self.data[record.name.value] = record
 
 
-phone_book = AddressBook()
+class InputError:
+    def __init__(self, func) -> None:
+        self.func = func
 
-
-def input_error(func):
-    def wrapper(*args):
+    def __call__(self, contacts, *args):
         try:
-            return func(*args)
+            return self.func(contacts, *args)
         except IndexError:
-            return 'Sorry,try again:command,name,phone.'
+            return 'Sorry,enter command,name,phone'
         except KeyError:
-            return 'Name not found'
+            return 'Sorry,user not found, try again!'
         except ValueError:
-            return 'Value isn`t correct'
-
-    return wrapper
+            return 'Sorry,phone number not found,try again!'
 
 
-@input_error
-def exit(*args):
-    return "Good bye!"
-
-
-@input_error
 def greeting(*args):
-    return "Hello!"
+    return 'Hello! Can I help you?'
 
 
-@input_error
-def add(*args):
+@InputError
+def add(contacts, *args):
     name = Name(args[0])
     phone = Phone(args[1])
-    rec = Record(name, phone)
-    phone_book.add_record(rec)
-    return f'Contact {args[0]} add successful'
+    if name.value in contacts:
+        contacts[name.value].add_phone(phone)
+        return f'Add phone number: {phone} for {name}'
+    else:
+        contacts[name.value] = Record(name, [phone])
+        return f'Add {name}:{phone}'
 
 
-@input_error
-def change_phone(*args):
-    rec = phone_book[args[0]]
-    return f'Contact {args[0]} changed'
+@InputError
+def change(contacts, *args):
+    name, old_phone, new_phone = args[0], args[1], args[2]
+    contacts[name].edit_phone(Phone(old_phone), Phone(new_phone))
+    return f'{name} your old phone number: {old_phone} was changed to {new_phone}'
 
 
-@input_error
-def show_all(*args):
-    return '\n'.join(f'{key}: {value}' for key, value in phone_book.items())
+@InputError
+def phone(contacts, *args):
+    name = args[0]
+    phone = contacts[name]
+    return f'{phone}'
 
 
-@input_error
-def remove(*args):
-    for key in phone_book.keys():
-        if key is args[0]:
-            phone_book.pop(Record)
-    return f'Contact {args[0]} was deleted'
+@InputError
+def del_phone(contacts, *args):
+    name, phone = args[0], args[1]
+    contacts[name].del_phone(Phone(phone))
+    return f'for {name} {phone} is delete'
 
 
-COMMANDS = {exit: ["exit", "bye"], add: ["add", 'add contact'], show_all: ["show all", "show"],
-            change_phone: ['change', 'change contact'], greeting: ['hello', 'hi'],
-            remove: ['remove', 'delete']}
+def show_all(contacts, *args):
+    for key in contacts:
+        return f'{contacts[key]}'
 
 
-def parse_command(user_input: str):
-    for k, v in COMMANDS.items():
-        for i in v:
-            if user_input.lower().startswith(i.lower()):
-                return k, user_input[len(i):].strip().split(" ")
+def exiting(*args):
+    return 'Good bye!'
+
+
+COMMANDS = {greeting: ['hello'], add: ['add'], change: ['change'], phone: ['phone'],
+            show_all: ['show'], exiting: ['good bye', 'close', 'exit'],
+            del_phone: ['delete']}
+
+
+def command_parser(user_command: str) -> str:
+    for key, list_value in COMMANDS.items():
+        for value in list_value:
+            if user_command.lower().startswith(value):
+                args = user_command[len(value):].split()
+                return key, args
 
 
 def main():
+    contacts = AddressBook()
     while True:
-        user_input = input(">>> ")
-        result, data = parse_command(user_input)
-        print(result(*data))
-        if result is exit:
+        user_command = input('>>> ')
+        command, data = command_parser(user_command)
+        print(command(contacts, *data))
+        if command is exiting:
             break
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
